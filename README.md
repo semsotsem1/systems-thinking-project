@@ -37,3 +37,20 @@ SQLite was chosen to reduce operational complexity and keep the focus on system 
 **In-memory queue vs external message broker**
 
 An in-memory queue is used to keep the architecture simple and transparent. External brokers like Redis or RabbitMQ would provide better reliability but add operational and conceptual complexity.
+
+### Failure scenario: database outage
+
+**Trigger**  
+The database becomes unavailable due to an unexpected shutdown or a connection error.
+
+**Detection**  
+The API logs database connection errors and exposes a degraded status through the health endpoint.
+
+**Impact**  
+Write operations fail and return errors, while read operations may return cached or stale data. Overall, system functionality is reduced but remains predictable.
+
+**Recovery**  
+When the database connection is restored, the system resumes normal operation without manual intervention.
+
+**Future improvements**  
+Possible improvements include better caching strategies, retry mechanisms, and a clearer separation between read and write paths.
