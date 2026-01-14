@@ -54,3 +54,14 @@ When the database connection is restored, the system resumes normal operation wi
 
 **Future improvements**  
 Possible improvements include better caching strategies, retry mechanisms, and a clearer separation between read and write paths.
+
+### Observability plan
+
+The following signals are collected to understand system behavior:
+
+- **Request rate** to know how much traffic the system handles.
+- **Error rate (4xx/5xx)** for abnormal behavior detection and failures.
+- **Latency (p50, p95)** to understand how response times change under load.
+- **Basic logs** with request identifiers to trace individual requests during failures. 
+
+These signals are designed to be simple so that the behavior of the system is easy to observe and reason about.
