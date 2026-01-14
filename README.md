@@ -1,67 +1,128 @@
 # systems-thinking-project
-API prototype with metrics, load tests (500 rps), and a documented failure scenario
+
+API prototype with an emphasis on system behavior under load, errors, and basic security constraints.
 
 ### Problem statement
 
-Like many real-world systems, API-based services often run smoothly under normal conditions but can fail in unclear ways under load, partial outages and unexpected inputs.
-As a newbie in systems engineering, I want to understand how failures, performance limits, and security decisions affect how a system behaves.
+Like many real-world systems, API-based services can work well under normal conditions and fail in unclear ways when under load, partially down, or with unexpected inputs.
 
-This project is a small API designed to explore reliability, observability and basic security trade-offs in a controlled environment.
+As a learner of systems engineering, I want to understand how failures, performance limits, and security decisions drive the way a system behaves. This project is a small API meant to explore reliability, observability, and basic security trade-offs within a controlled environment.
 
 ### Target user
 
 Beginners who want to understand how API-based systems work under real-world limitations such as load, failures, and basic security requirements.
 
+### How to run
+
+```bash
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+### Load test
+
+```bash
+python scripts/load_test.py
+```
+
 ### Success metrics
 
-- The API responds within allowable time limits under average load (300-500 requests per second).
-- The number of errors remains low during normal operation.
-- When the database becomes unavailable, the system continues to operate in a degraded and at the same time predictable way.
+- Baseline: 300 rps, p95 latency < 200ms, error rate < 1%
+- Peak: 500 rps for 2 minutes, p95 latency < 300ms, error rate < 3%
+- DB outage: data endpoints return 503, /health returns degraded=true, failure is observable via logs + metrics
 
 ### Constraints
 
-- The system is intentionally kept simple to make design decisions easier to understand and discuss.
-- Performance requirements are limited to moderate load (300–500 requests per second).
-- Security is implemented at a basic level, focusing on clear and understandable mechanisms rather than completeness.
+- Keep the system as simple as possible in order to make decisions easy to comprehend and reason about.
+- Target load is intentionally limited to 300–500 rps to keep experiments reproducible.
+- Basic security only: clarity over completeness.
+
+### Architecture (high level)
+
+```
+[Client]
+   |
+   v
+[FastAPI API] ---> [SQLite DB]
+   |
+   +--> [Metrics middleware] --> [metrics_events (in-memory or SQLite)]
+```
+
+- `GET /health` reports degraded status
+- JWT auth protects `/data/*` endpoints
+
+**Planned endpoints (draft)**
+
+- GET /health
+- POST /auth/login
+- CRUD /items or /notes
+
+Scripts:
+- /scripts/load_test.py drives traffic to the API 
+- /scripts/anomaly_zscore.py analyzes exported metrics later
 
 ### Key trade-offs
 
 **JWT vs server-side sessions**
 
-JWT was chosen for simplicity and statelessness. It makes the system easier to scale and reason about, but comes with security trade-offs such as token theft and limited server-side control.
+JWT is used for simplicity and statelessness.
+Trade-offs: token theft risk, hard to revoke tokens, limited server-side control.
 
 **SQLite vs PostgreSQL**
 
-SQLite was chosen to reduce operational complexity and keep the focus on system behavior rather than database management. This limits scalability and concurrency but is sufficient for controlled experiments.
+SQLite has been used to minimize operational complexity and keep the focus of experiments on system behavior, not database management. This limits scalability but is sufficient for controlled experiments.
 
-**In-memory queue vs external message broker**
+**In-memory metrics vs persistent storage**
 
-An in-memory queue is used to keep the architecture simple and transparent. External brokers like Redis or RabbitMQ would provide better reliability but add operational and conceptual complexity.
+Metrics are stored in memory or in a simple SQLite table to begin with. This keeps the observability mechanisms lightweight. Anything more heavy-duty would add complexity, not improve the learning results in this phase.
 
 ### Failure scenario: database outage
 
-**Trigger**  
-The database becomes unavailable due to an unexpected shutdown or a connection error.
+**Trigger**
+The database will not be accessible because of the shutdown or connection error.
 
-**Detection**  
-The API logs database connection errors and exposes a degraded status through the health endpoint.
+**Detection**
+Errors in database connections are recorded, and the `GET /health` endpoint indicates that `degraded=true`.
 
-**Impact**  
-Write operations fail and return errors, while read operations may return cached or stale data. Overall, system functionality is reduced but remains predictable.
+**During DB outage:**
 
-**Recovery**  
-When the database connection is restored, the system resumes normal operation without manual intervention.
+- db_errors_total increases
+- error rate spikes
+- logs contain db_unavailable=true
 
-**Future improvements**  
-Possible improvements include better caching strategies, retry mechanisms, and a clearer separation between read and write paths.
+**Impact**
+All data endpoints return 503 responses. The system doesn't try to hide its failures, but it remains predictable and observable in its behavior.
+
+**Recovery**
+Once the database connection is recovered, the system will then automatically resume normal operation without manual intervention.
+
+**Future improvements**
+Some potential improvements that can be made are read-only support for some endpoints, improved retry logic, and differentiating read and write paths.
 
 ### Observability plan
 
 The following signals are collected to understand system behavior:
 
-- **Request rate** to know how much traffic the system handles.
-- **Error rate (4xx/5xx)** for abnormal behavior detection and failures.
-- **Latency (p50, p95)** to understand how response times change under load.
-- **Basic logs** with request identifiers to trace individual requests during failures. 
+- **Request rate** to see the volume of incoming traffic.
+- **Error rate (4xx/5xx)** to detect abnormal behavior and failures.
+- **Latency (p50, p95)** to understand response time distribution under load.
+- **Structured logs** with request identifiers to trace failures and degraded states.
 
-These signals are designed to be simple so that the behavior of the system is easy to observe and reason about.
+Signals are intentionally kept minimal in order to make system behavior easy to observe and reason about.
+
+### Non-goals
+
+- No distributed architecture or Kubernetes
+- No production-grade authentication (OAuth, MFA, SSO)
+- No external message brokers (Redis, RabbitMQ)
+- No multi-region high availability
+
+### Plan of execution
+
+Week 1: Creating a FastAPI skeleton, adding SQLite integration, basic auth decision
+Week 2: Logging, metrics collection, load testing scripts
+Week 3: Database outage scenario and degraded mode
+Week 4: Script for anomaly detection and unit tests
+Week 5: Security hardening and ISC2 CC completion
+Week 6: SOP draft and documentation polishing
+Week 7: Final package and submission
