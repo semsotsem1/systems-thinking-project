@@ -119,10 +119,10 @@ Signals are intentionally kept minimal in order to make system behavior easy to 
 
 ### Plan of execution
 
-**Week 1:** Creating a FastAPI skeleton, adding SQLite integration, basic auth decision
-**Week 2:** Logging, metrics collection, load testing scripts
-**Week 3:** Database outage scenario and degraded mode
-**Week 4:** Script for anomaly detection and unit tests
-**Week 5:** Security hardening and ISC2 CC completion
-**Week 6:** SOP draft and documentation polishing
-**Week 7:** Final package and submission
+- **Week 1:** Creating a FastAPI skeleton, adding SQLite integration, basic auth decision
+- **Week 2:** Logging, metrics collection, load testing scripts
+- **Week 3:** Database outage scenario and degraded mode
+- **Week 4:** Script for anomaly detection and unit tests
+- **Week 5:** Security hardening and ISC2 CC completion
+- **Week 6:** SOP draft and documentation polishing
+- **Week 7:** Final package and submission
