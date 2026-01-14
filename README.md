@@ -11,3 +11,9 @@ This project is a small API designed to explore reliability, observability and b
 ### Target user
 
 Beginners who want to understand how API-based systems work under real-world limitations such as load, failures, and basic security requirements.
+
+### Success metrics
+
+- The API responds within allowable time limits under average load (300-500 requests per second).
+- The number of errors remains low during normal operation.
+- When the database becomes unavailable, the system continues to operate in a degraded and at the same time predictable way.
