@@ -17,3 +17,9 @@ Beginners who want to understand how API-based systems work under real-world lim
 - The API responds within allowable time limits under average load (300-500 requests per second).
 - The number of errors remains low during normal operation.
 - When the database becomes unavailable, the system continues to operate in a degraded and at the same time predictable way.
+
+### Constraints
+
+- The system is intentionally kept simple to make design decisions easier to understand and discuss.
+- Performance requirements are limited to moderate load (300–500 requests per second).
+- Security is implemented at a basic level, focusing on clear and understandable mechanisms rather than completeness.
