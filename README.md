@@ -10,7 +10,7 @@ As a learner of systems engineering, I want to understand how failures, performa
 
 ### Target user
 
-Beginners who want to understand how API-based systems work under real-world limitations such as load, failures, and basic security requirements.
+CS students and early engineers who want to understand how API-based systems work under real-world limitations such as load, failures, and basic security requirements.
 
 ### How to run
 
@@ -27,9 +27,11 @@ python scripts/load_test.py
 
 ### Success metrics
 
-- Baseline: 300 rps, p95 latency < 200ms, error rate < 1%
-- Peak: 500 rps for 2 minutes, p95 latency < 300ms, error rate < 3%
-- DB outage: data endpoints return 503, /health returns degraded=true, failure is observable via logs + metrics
+| Scenario | Load | Success Criteria |
+|----------|------|------------------|
+| Baseline | 300 rps | p95 < 200ms, error rate < 1% |
+| Peak | 500 rps (2 min) | p95 < 300ms, error rate < 3% |
+| DB outage | All data endpoints | Return 503, `/health` shows `degraded=true`, 5xx error rate spikes are visible in metrics |
 
 ### Constraints
 
@@ -37,25 +39,35 @@ python scripts/load_test.py
 - Target load is intentionally limited to 300–500 rps to keep experiments reproducible.
 - Basic security only: clarity over completeness.
 
-### Architecture (high level)
+### Architecture
 
 ```
-[Client]
-   |
-   v
-[FastAPI API] ---> [SQLite DB]
-   |
-   +--> [Metrics middleware] --> [metrics_events (in-memory or SQLite)]
+┌──────────┐
+│  Client  │
+└─────┬────┘
+      │ HTTP requests
+      ▼
+┌───────────────────────┐
+│     FastAPI API       │
+│  + Metrics middleware │
+└──┬────┬────┬────┬─────┘
+   │    │    │    │
+   │    │    │    └─────> GET /health (degraded status)
+   │    │    └──────────> Structured logs (request_id, latency_ms, errors)
+   │    └───────────────> Metrics store (in-memory or SQLite)
+   └────────────────────> SQLite DB
 ```
+
+**Note:** This is intentionally a monolith. Distributed components would obscure failure modes that I'm trying to understand clearly.
 
 - `GET /health` reports degraded status
 - JWT auth protects `/data/*` endpoints
 
 **Planned endpoints (draft)**
 
-- GET /health
-- POST /auth/login
-- CRUD /items or /notes
+- `GET /health`
+- `POST /auth/login`
+- `CRUD /items or /notes`
 
 Scripts:
 - /scripts/load_test.py drives traffic to the API 
@@ -65,16 +77,63 @@ Scripts:
 
 **JWT vs server-side sessions**
 
-JWT is used for simplicity and statelessness.
-Trade-offs: token theft risk, hard to revoke tokens, limited server-side control.
+Decision: JWT for simplicity and statelessness.
+
+**Trade-offs:**
+- ✅ Stateless → no session store needed, easier to reason about
+- ✅ Scalable → tokens validated without DB lookup
+- ❌ Token theft risk → mitigated with short expiry (15 min)
+- ❌ Hard to revoke → logged-out users still have valid tokens until expiry
+- ❌ Token size → JWTs are larger than session IDs in headers
+
+**Why not sessions?**
+Sessions would be more secure (server-side revocation), but add complexity:
+- Need session store (Redis/DB)
+- Harder to reason about distributed scenarios later
+
+For the purpose of learning, simplicity favors JWT.
 
 **SQLite vs PostgreSQL**
 
-SQLite has been used to minimize operational complexity and keep the focus of experiments on system behavior, not database management. This limits scalability but is sufficient for controlled experiments.
+Decision: SQLite has been used to minimize operational complexity and keep the focus of experiments on system behavior, not database management. This limits scalability but is sufficient for controlled experiments.
+
+**Trade-offs:**
+- ✅ Zero configuration → single file, no server to manage
+- ✅ Reproducible → same behavior across environments
+- ✅ Fast for <500 rps → sufficient for controlled experiments
+- ❌ Single-writer limitation → concurrent writes serialize
+- ❌ No network access → can't separate API and DB layers
+
+**Why not PostgreSQL?**
+PostgreSQL would handle concurrency better and scale further, but:
+- Adds setup complexity (installation, user management, connection pooling)
+- Requires external service management
+- Makes failure scenarios harder to reproduce (network issues, connection pools)
+- Distracts from the core goal: understanding system behavior, not database administration
+
+SQLite's limitations are well-understood and acceptable for 300–500 rps. If concurrent write bottlenecks appear during testing, that becomes a learning opportunity, not a problem.
 
 **In-memory metrics vs persistent storage**
 
-Metrics are stored in memory or in a simple SQLite table to begin with. This keeps the observability mechanisms lightweight. Anything more heavy-duty would add complexity, not improve the learning results in this phase.
+Decision: In-memory storage (or simple SQLite table) for metrics collection.
+
+**Trade-offs:**
+- ✅ Lightweight → no external dependencies (Prometheus, Grafana, InfluxDB)
+- ✅ Easy to reason about → metrics are just data structures or DB rows
+- ✅ Fast iteration → no setup, configuration, or network calls
+- ❌ Lost on restart → metrics don't persist across API restarts
+- ❌ No real-time dashboards → must export and analyze manually
+- ❌ Not production-ready → would need proper time-series DB at scale
+
+**Why not Prometheus + Grafana?**
+A full monitoring stack would be more "realistic," but:
+- Adds significant setup time (Docker Compose, configuration files)
+- Obscures the core metrics logic behind abstractions
+- Makes debugging harder (is the issue in my code or the monitoring stack?)
+- Too much for a 7-week learning project
+
+**Pattern**
+I prioritize simplicity over production realism, with explicit limitations documented.
 
 ### Failure scenario: database outage
 
@@ -84,11 +143,24 @@ The database will not be accessible because of the shutdown or connection error.
 **Detection**
 Errors in database connections are recorded, and the `GET /health` endpoint indicates that `degraded=true`.
 
-**During DB outage:**
+Example log entry during outage:
+```json
+{
+  "timestamp": "<ISO8601>",
+  "level": "ERROR",
+  "event": "db_connection_failed",
+  "request_id": "abc-123",
+  "path": "/items",
+  "status_code": 503,
+  "db_unavailable": true
+}
+```
 
-- db_errors_total increases
-- error rate spikes
-- logs contain db_unavailable=true
+**During DB outage:**
+- `db_errors_total` increases
+- error rate spikes (4xx/5xx)
+- all data endpoints return 503
+- logs contain `db_unavailable=true`
 
 **Impact**
 All data endpoints return 503 responses. The system doesn't try to hide its failures, but it remains predictable and observable in its behavior.
@@ -96,17 +168,23 @@ All data endpoints return 503 responses. The system doesn't try to hide its fail
 **Recovery**
 Once the database connection is recovered, the system will then automatically resume normal operation without manual intervention.
 
-**Future improvements**
-Some potential improvements that can be made are read-only support for some endpoints, improved retry logic, and differentiating read and write paths.
+**Mitigation (planned)**
+- Fast DB timeout (<1s) to avoid hanging requests
+- Fail-fast behavior: return 503 on data endpoints during DB outage
+- Optional read-only mode from in-memory cache (if safe to serve stale data)
+- Separate read/write paths to isolate failures and analyze degradation clearly
+- Circuit breaker (stretch goal) to prevent repeated DB retries in case of outage
 
 ### Observability plan
 
 The following signals are collected to understand system behavior:
+- **Request rate** to see the volume of incoming traffic
+- **Error rate (4xx/5xx)** to detect abnormal behavior and failures
+- **Latency (p50, p95)** to understand response time distribution under load
+- **Structured logs** with request identifiers to trace failures and degraded states
 
-- **Request rate** to see the volume of incoming traffic.
-- **Error rate (4xx/5xx)** to detect abnormal behavior and failures.
-- **Latency (p50, p95)** to understand response time distribution under load.
-- **Structured logs** with request identifiers to trace failures and degraded states.
+**Why these metrics and not others?**
+These four signals (rate, errors, latency, logs) form the minimal viable observation set. Even more metrics such as CPU, memory, or disk I/O would be valuable in production, but for controlled experiments they would add noise without improving my understanding of API behavior.
 
 Signals are intentionally kept minimal in order to make system behavior easy to observe and reason about.
 
@@ -117,12 +195,26 @@ Signals are intentionally kept minimal in order to make system behavior easy to 
 - No external message brokers (Redis, RabbitMQ)
 - No multi-region high availability
 
+### Known limitations
+
+- **No refresh tokens**
+   JWTs expire after 15 minutes; users must re-login.
+
+- **SQLite concurrency limits**
+   Concurrent writes serialize due to SQLite single-writer behavior.
+
+- **Metrics may be in-memory**
+   Metrics are lost on restart unless persisted to SQLite.
+
+- **No per-endpoint rate limiting**
+   Rate limiting (if added) is global for simplicity.
+
 ### Plan of execution
 
 - **Week 1:** Creating a FastAPI skeleton, adding SQLite integration, basic auth decision
 - **Week 2:** Logging, metrics collection, load testing scripts
 - **Week 3:** Database outage scenario and degraded mode
-- **Week 4:** Script for anomaly detection and unit tests
+- **Week 4:** Anomaly detection (z-score), unit tests, probability/stats integration
 - **Week 5:** Security hardening and ISC2 CC completion
 - **Week 6:** SOP draft and documentation polishing
 - **Week 7:** Final package and submission
