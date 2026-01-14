@@ -23,3 +23,17 @@ Beginners who want to understand how API-based systems work under real-world lim
 - The system is intentionally kept simple to make design decisions easier to understand and discuss.
 - Performance requirements are limited to moderate load (300–500 requests per second).
 - Security is implemented at a basic level, focusing on clear and understandable mechanisms rather than completeness.
+
+### Key trade-offs
+
+**JWT vs server-side sessions**
+
+JWT was chosen for simplicity and statelessness. It makes the system easier to scale and reason about, but comes with security trade-offs such as token theft and limited server-side control.
+
+**SQLite vs PostgreSQL**
+
+SQLite was chosen to reduce operational complexity and keep the focus on system behavior rather than database management. This limits scalability and concurrency but is sufficient for controlled experiments.
+
+**In-memory queue vs external message broker**
+
+An in-memory queue is used to keep the architecture simple and transparent. External brokers like Redis or RabbitMQ would provide better reliability but add operational and conceptual complexity.
