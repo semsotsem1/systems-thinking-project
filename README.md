@@ -25,13 +25,25 @@ uvicorn app.main:app --reload
 python scripts/load_test.py
 ```
 
-### Success metrics
+## Targets + Measurement setup (draft)
 
-| Scenario | Load | Success Criteria |
-|----------|------|------------------|
-| Baseline | 300 rps | p95 < 200ms, error rate < 1% |
-| Peak | 500 rps (2 min) | p95 < 300ms, error rate < 3% |
-| DB outage | All data endpoints | Return 503, `/health` shows `degraded=true`, 5xx error rate spikes are visible in metrics |
+These are initial targets. Final numbers will be updated after running reproducible load tests on my machine.
+
+### Load test scenarios (draft targets)
+
+| Scenario | Duration | Target outcome (draft) |
+|---|---:|---|
+| Baseline | 60–120s | stable p95 latency and low error rate |
+| Peak | 120s | higher p95 latency allowed, error rate still controlled |
+| DB outage | 60–120s | data endpoints return 503 fast, `/health` reports `degraded=true`, spike visible in metrics |
+
+### Measurement setup (to be filled once implemented)
+
+- Machine: TODO (CPU/RAM/OS)
+- Server: uvicorn workers = TODO
+- Client/load tool: `scripts/load_test.py`
+- Traffic mix: TODO (e.g., 80% GET / 20% POST)
+- Notes: SQLite limitations may dominate write-heavy scenarios
 
 ### Constraints
 
