@@ -25,6 +25,18 @@ uvicorn app.main:app --reload
 python scripts/load_test.py
 ```
 
+## Evidence (will be updated weekly)
+
+- PR: API skeleton + `/health` (TODO)
+- PR: SQLite integration + CRUD (TODO)
+- PR: JWT auth (TODO)
+- PR: metrics middleware + `/metrics/summary` (TODO)
+- Report: load test results table + plot (TODO)
+- Evidence: DB outage run (logs + metrics) (TODO)
+- Script: micro z-score anomaly detection + test (TODO)
+- Script: network health checker + report (TODO)
+- Doc: docs/runbook.md (TODO)
+
 ## Targets + Measurement setup (draft)
 
 These are initial targets. Final numbers will be updated after running reproducible load tests on my machine.
@@ -48,7 +60,7 @@ These are initial targets. Final numbers will be updated after running reproduci
 ### Constraints
 
 - Keep the system as simple as possible in order to make decisions easy to comprehend and reason about.
-- Target load is intentionally limited to 300–500 rps to keep experiments reproducible.
+- Target load is intentionally limited (draft: ~300-500 rps) to keep experiments reproducible on a single machine.
 - Basic security only: clarity over completeness.
 
 ### Architecture
@@ -72,14 +84,21 @@ These are initial targets. Final numbers will be updated after running reproduci
 
 **Note:** This is intentionally a monolith. Distributed components would obscure failure modes that I'm trying to understand clearly.
 
-- `GET /health` reports degraded status
-- JWT auth protects `/data/*` endpoints
+- `GET /health` reports system status (planned: includes `degraded=true/false`)
+- JWT auth protects the Notes API endpoints (`/notes`, `/notes/{id}`) (planned)
 
-**Planned endpoints (draft)**
+## Planned endpoints (draft)
 
+Public:
 - `GET /health`
 - `POST /auth/login`
-- `CRUD /items or /notes`
+
+Protected (JWT):
+- `GET /notes`
+- `POST /notes`
+- `GET /notes/{id}`
+- `PUT /notes/{id}`
+- `DELETE /notes/{id}`
 
 Scripts:
 - /scripts/load_test.py drives traffic to the API 
@@ -162,17 +181,17 @@ Example log entry during outage:
   "level": "ERROR",
   "event": "db_connection_failed",
   "request_id": "abc-123",
-  "path": "/items",
+  "path": "/notes",
   "status_code": 503,
   "db_unavailable": true
 }
 ```
 
-**During DB outage:**
-- `db_errors_total` increases
-- error rate spikes (4xx/5xx)
-- all data endpoints return 503
+**During DB outage (expected):**
+- 5xx error rate spikes
+- `/health` shows `degraded=true`
 - logs contain `db_unavailable=true`
+- metrics summary shows increased failures and changed latency distribution
 
 **Impact**
 All data endpoints return 503 responses. The system doesn't try to hide its failures, but it remains predictable and observable in its behavior.
@@ -183,9 +202,8 @@ Once the database connection is recovered, the system will then automatically re
 **Mitigation (planned)**
 - Fast DB timeout (<1s) to avoid hanging requests
 - Fail-fast behavior: return 503 on data endpoints during DB outage
-- Optional read-only mode from in-memory cache (if safe to serve stale data)
-- Separate read/write paths to isolate failures and analyze degradation clearly
-- Circuit breaker (stretch goal) to prevent repeated DB retries in case of outage
+- Clear degraded signaling in `/health`
+- Circuit breaker (stretch goal)
 
 ### Observability plan
 
@@ -223,10 +241,10 @@ Signals are intentionally kept minimal in order to make system behavior easy to 
 
 ### Plan of execution
 
-- **Week 1:** Creating a FastAPI skeleton, adding SQLite integration, basic auth decision
-- **Week 2:** Logging, metrics collection, load testing scripts
-- **Week 3:** Database outage scenario and degraded mode
-- **Week 4:** Anomaly detection (z-score), unit tests, probability/stats integration
-- **Week 5:** Security hardening and ISC2 CC completion
-- **Week 6:** SOP draft and documentation polishing
-- **Week 7:** Final package and submission
+- **Week 1:** repo setup, docs cleanup, test baseline
+- **Week 2:** FastAPI + SQLite + CRUD + JWT + basic tests
+- **Week 3:** structured logs, metrics capture, load test script, results report (table + 1 plot)
+- **Week 3.5:** network health checker (targets config + JSON/CSV report)
+- **Week 4:** failure scenario - DB outage → degraded mode, evidence capture (logs + metrics)
+- **Week 5:** security hardening + micro z-score script + final polishing + SOP v1
+- **Week 6 (buffer):** debugging, documentation polish, final package and screenshots
