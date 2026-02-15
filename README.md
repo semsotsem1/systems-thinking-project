@@ -27,8 +27,9 @@ python scripts/load_test.py
 
 ## Evidence (will be updated weekly)
 
-- PR: API skeleton + `/health` (TODO)
-- PR: SQLite integration + CRUD (TODO)
+- Done: API skeleton + `/health` (pytest + ruff)
+- Done: SQLite integration + Notes CRUD (+ tests, Swagger manual check)
+
 - PR: JWT auth (TODO)
 - PR: metrics middleware + `/metrics/summary` (TODO)
 - Report: load test results table + plot (TODO)
